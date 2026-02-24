@@ -1,70 +1,144 @@
-# Getting Started with Create React App
+# Asparagus Operations Management — POC
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+> **Proof of Concept** — A prototype for managing asparagus supply chain operations: master data, invoice entry, and AI-assisted document analysis. Built with React and a Node.js backend, using Google Sheets as the data layer and OpenAI for invoice extraction.
 
-## Available Scripts
+---
 
-In the project directory, you can run:
+## Overview
 
-### `npm start`
+This POC demonstrates an end-to-end workflow for asparagus (*esparrago*) business operations:
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+1. **Master Data** — Manage reference data (farmers, clients, products, commissions, boxes)
+2. **Data Entry** — Capture inventory and invoices (initial and final)
+3. **AI-Assisted Invoice Analysis** — Upload PDF/XML invoices and use GPT to extract structured data
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+The app is designed to validate the architecture and UX before scaling to a full product.
 
-### `npm test`
+---
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+## What This POC Explores
 
-### `npm run build`
+This project was built to learn how to **design and architect full-stack solutions** with a clear separation between backend and frontend in a React environment:
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+- **Frontend** — React (pages, components, hooks) owns UI and user flows; calls a backend API for data and side effects
+- **Backend** — Express API owns business logic, external services (Google, OpenAI), and file handling; exposes REST endpoints
+- **Integration** — Axios + dev proxy for API calls; shared contracts via request/response shapes; no business logic in the UI
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+The asparagus domain is used as a concrete use case to practice this architecture and wiring.
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+---
 
-### `npm run eject`
+## Features
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+### Master Data
+- **Agricultores** (Farmers) — CRUD with address autocomplete (Google Places), phone/email validation
+- **Clientes** (Clients)
+- **Producto Esparrago** (Asparagus products)
+- **Comisiones** (Commissions)
+- **Cajas** (Boxes)
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+Data is read/written from Google Sheets via the backend API.
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+### Data Entry
+- **Inventario** (Inventory) — Placeholder for inventory entry
+- **Factura Inicial** — Upload invoice PDF/XML → AI extraction → manual review → save to Sheets
+- **Factura Final** — Similar flow for final invoices
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+### Backend API
+- **Google Drive** — Upload, list, download, share, delete files
+- **Google Sheets** — Read, append, update, delete rows
+- **OpenAI** — Chat completion and file-based analysis (invoice parsing)
+- **Danfo.js** — CSV/DataFrame processing for data workflows
 
-## Learn More
+---
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+## Tech Stack
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+| Layer        | Stack                                |
+|-------------|--------------------------------------|
+| Frontend    | React 19, React Router, Axios        |
+| UI          | Google Maps Places (address autocomplete) |
+| Backend     | Express, Multer, CORS                |
+| Data        | Google Sheets, Google Drive          |
+| AI          | OpenAI GPT (invoice extraction)      |
 
-### Code Splitting
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Setup
 
-### Analyzing the Bundle Size
+### 1. Install dependencies
+```bash
+npm install
+cd api && npm install
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+### 2. Environment variables
+Create `.env` in the project root and `api/.env`:
 
-### Making a Progressive Web App
+```env
+# Root (.env) - for React
+REACT_APP_GOOGLE_MAPS_API_KEY=your_google_maps_key
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+```env
+# api/.env - for backend
+OPENAI_API_KEY=your_openai_key
+GOOGLE_DRIVE_FOLDER_ID=optional_default_folder_id
+PORT=4000
+```
 
-### Advanced Configuration
+### 3. Google credentials
+Place `api/credentials.json` (Google service account key) for Drive and Sheets access.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+### 4. Run
+```bash
+# Terminal 1: API server (port 4000)
+cd api && node index.js
 
-### Deployment
+# Terminal 2: React app (port 3000)
+npm start
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+The React dev server proxies API requests to the backend (see `proxy` in `package.json`).
 
-### `npm run build` fails to minify
+---
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## Project Structure
+
+Frontend and backend live in separate areas; the `src/services/` layer is the bridge that calls the API:
+
+```
+├── api/                 # Backend — Express API (Drive, Sheets, OpenAI)
+├── src/
+│   ├── components/      # UI components (forms, autocomplete)
+│   ├── hooks/           # Data & state (useMasterData, useFacturaInicial)
+│   ├── pages/           # Master data & data entry screens
+│   ├── services/        # Frontend → API bridge (masterDataService, facturaService)
+│   └── utils/           # Validators, number formatting
+└── public/
+```
+
+---
+
+## POC Scope & Limitations
+
+- **Data layer**: Google Sheets; not suitable for high-volume production
+- **Auth**: No authentication/authorization; for demo use only
+- **Planned**: "Procesar Data" and "Análisis y Venta Final" modules are not yet implemented
+- **Errors**: Limited error handling and validation; focus is on core flows
+
+---
+
+## Scripts
+
+| Command      | Description                    |
+|-------------|--------------------------------|
+| `npm start` | Run React dev server (port 3000) |
+| `npm run build` | Production build           |
+| `npm test`  | Run tests                     |
+
+---
+
+## License
+
+Private.

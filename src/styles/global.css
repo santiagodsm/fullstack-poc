@@ -1,0 +1,192 @@
+/* global.css */
+
+/* 1. CSS Reset (Meyer’s minimal reset) */
+html, body, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, cite, code,
+del, dfn, em, img, ins, kbd, q, s, samp,
+small, strike, strong, sub, sup, tt, var,
+b, u, i, center,
+dl, dt, dd, menu, ol, ul, li,
+fieldset, form, label, legend,
+caption, article, aside, canvas, details, embed,
+figure, figcaption, footer, header, hgroup,
+main, nav, output, ruby, section, summary,
+time, mark, audio, video {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font-size: 100%;
+  font: inherit;
+  vertical-align: baseline;
+}
+/* HTML5 display-role reset for older browsers */
+article, aside, details, figcaption, figure,
+footer, header, hgroup, main, menu, nav, section {
+  display: block;
+}
+body {
+  line-height: 1;
+}
+menu, ol, ul {
+  list-style: none;
+}
+blockquote, q {
+  quotes: none;
+}
+blockquote::before, blockquote::after,
+q::before, q::after {
+  content: '';
+  content: none;
+}
+table {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+/* 2. CSS Variables */
+:root {
+  /* Greens from logo */
+  --color-primary: #3A7D44;       /* Darker leaf green */
+  --color-secondary: #8FCB82;     /* Light leaf green */
+  /* Warm accent matching banner text */
+  --color-accent: #FF8C42;        /* Vibrant orange */
+  /* Neutrals */
+  --color-bg: #FFFFFF;
+  --color-text: #2E2E2E;
+  --color-muted: #6C6C6C;
+  --radius: 4px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --font-base: 'Helvetica Neue', Arial, sans-serif;
+  --font-heading: 'Georgia', serif;
+}
+
+/* 3. Base Styles */
+body {
+  font-family: var(--font-base);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-heading);
+  color: var(--color-primary);
+  margin-bottom: var(--spacing-md);
+  line-height: 1.2;
+}
+
+p {
+  margin-bottom: var(--spacing-md);
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+a:hover {
+  text-decoration: underline;
+}
+
+/* 4. Utility Classes */
+.container {
+  width: 90%;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.mt-sm { margin-top: var(--spacing-sm); }
+.mt-md { margin-top: var(--spacing-md); }
+.mb-sm { margin-bottom: var(--spacing-sm); }
+.mb-md { margin-bottom: var(--spacing-md); }
+
+/* 5. Buttons */
+button {
+  font-family: var(--font-base);
+  cursor: pointer;
+  border: none;
+  border-radius: var(--radius);
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 1rem;
+  transition: background-color 0.2s ease;
+}
+
+button.primary {
+  background-color: var(--color-primary);
+  color: #fff;
+}
+button.primary:hover {
+  background-color: var(--color-secondary);
+}
+
+button.accent {
+  background-color: var(--color-accent);
+  color: #fff;
+}
+button.accent:hover {
+  background-color: darken(var(--color-accent), 10%);
+}
+
+/* 6. Forms */
+input, select, textarea {
+  font-family: var(--font-base);
+  border: 1px solid #ccc;
+  border-radius: var(--radius);
+  padding: var(--spacing-sm);
+  font-size: 1rem;
+  width: 100%;
+  box-sizing: border-box;
+  margin-bottom: var(--spacing-md);
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 2px rgba(255, 140, 66, 0.3);
+}
+
+/* 7. Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: var(--spacing-md);
+}
+th, td {
+  padding: var(--spacing-sm);
+  border: 1px solid #e0e0e0;
+}
+th {
+  background-color: var(--color-secondary);
+  color: #fff;
+  text-align: left;
+}
+
+/* 8. Images & Media */
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* 9. Misc */
+hr {
+  border: none;
+  border-top: 1px solid #e0e0e0;
+  margin: var(--spacing-md) 0;
+}
+
+/* Ensure buttons remain visible on hover */
+button:hover {
+  display: inline-block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
