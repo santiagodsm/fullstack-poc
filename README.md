@@ -28,6 +28,20 @@ The asparagus domain is used as a concrete use case to practice this architectur
 
 ---
 
+## What This POC Proves
+
+- **Full-stack architecture** — You can cleanly separate React UI from an Express backend; services layer bridges them without leaking business logic into the frontend.
+
+- **LLM for document extraction** — You can use an LLM (GPT) to turn unstructured documents (PDF/XML invoices) into structured JSON. Context (clients, products) improves accuracy; the flow is: upload → AI extraction → human review → save.
+
+- **Google Sheets as a prototyping data layer** — You can skip a real database for early prototyping. Sheets holds master data and transactional records; migration path to a proper DB is clear.
+
+- **Multi-service orchestration** — One backend can coordinate Google Drive, Google Sheets, and OpenAI; the frontend stays simple and never touches APIs or keys.
+
+- **Real domain applicability** — The approach works for an actual business workflow (farmers, clients, invoices), not just a toy demo.
+
+---
+
 ## Features
 
 ### Master Data
