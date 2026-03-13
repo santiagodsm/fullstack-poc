@@ -72,31 +72,42 @@ ${jsonSchema}
  * @param {string} spreadsheetId - Google Sheets spreadsheet ID.
  * @param {object} header - Header fields.
  * @param {Array<object>} details - Array of detail line objects.
+ * @param {string} driveFileId - Drive file ID for lineage tracking.
  */
-async function saveFacturaInicial(spreadsheetId, header, details) {
-  // Batch save header and details in a single API call
+async function saveFacturaInicial(spreadsheetId, header, details, driveFileId) {
   await axios.post('/write-factura-inicial', {
     spreadsheetId,
     header,
-    details
+    details,
+    driveFileId: driveFileId || ''
   });
 }
 
 /**
- * Upload a document file to Google Drive and return its file ID.
+ * Upload a document to a date-partitioned Drive folder and log it to LakeCatalog.
  * @param {File} file - The file to upload.
- * @returns {Promise<string>} The Drive file ID.
+ * @returns {Promise<{ fileId: string, partitionPath: string }>}
  */
 async function uploadDocument(file) {
-  const DRIVE_FOLDER_ID = '1h88VrnN8p_YTRFwj0bR4jP4gze8UmvVZ';
+  const now = new Date();
+  const year  = String(now.getFullYear());
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+
+  // Ensure the YYYY/MM partition folder exists
+  const partitionResp = await axios.post('/ensure-partition', { year, month });
+  const { folderId, path: partitionPath } = partitionResp.data;
+
+  // Upload into the partition folder
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('partitionPath', partitionPath);
   const resp = await axios.post(
-    `/upload/${DRIVE_FOLDER_ID}`,
+    `/upload/${folderId}`,
     formData,
     { headers: { 'Content-Type': 'multipart/form-data' } }
   );
-  return resp.data.id;
+
+  return { fileId: resp.data.id, partitionPath };
 }
 
 const facturaService = {

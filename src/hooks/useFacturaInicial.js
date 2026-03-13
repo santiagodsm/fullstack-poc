@@ -112,8 +112,11 @@ export default function useFacturaInicial() {
       if (details.length === 0) throw new Error('Agrega al menos una línea de detalle.');
       // Upload document if file is present
       let documentoId = header.documentoFactura;
+      let driveFileId = '';
       if (file) {
-        documentoId = await facturaService.uploadDocument(file);
+        const uploaded = await facturaService.uploadDocument(file);
+        driveFileId  = uploaded.fileId;
+        documentoId  = uploaded.fileId;
       }
       // Compute total general from details
       const totalGeneral = details.reduce((sum, d) => sum + (d.Total || 0), 0);
@@ -122,7 +125,7 @@ export default function useFacturaInicial() {
         documentoFactura: documentoId,
         totalGeneral
       };
-      await facturaService.saveFacturaInicial(SPREADSHEET_ID, headerWithDoc, details);
+      await facturaService.saveFacturaInicial(SPREADSHEET_ID, headerWithDoc, details, driveFileId);
       // Reset after successful save
       setHeader(initialHeader);
       setDetails([]);

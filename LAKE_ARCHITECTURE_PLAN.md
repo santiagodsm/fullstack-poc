@@ -36,7 +36,7 @@ with the query engine running **inside the browser**.
 ### Design Principles
 
 - **No new paid infrastructure** — Drive, Sheets, and the existing Node backend are enough
-- **Query layer lives in the client** — Danfo.js processes DataFrames in the browser; no database server needed
+- **Query layer lives in the client** — DuckDB WASM runs SQL in the browser; no database server needed
 - **Demonstrable end-to-end** — a non-technical user should be able to follow the full data journey from raw PDF to business insight
 - **Extendable** — the architecture maps 1:1 to real lake concepts (zones, catalog, lineage, serving layer), so graduating to a real lake later is a refactor, not a rewrite
 
@@ -48,7 +48,7 @@ with the query engine running **inside the browser**.
 | ETL / Transform Layer | OpenAI GPT-4o-mini (PDF/XML → structured JSON) |
 | Curated / Processed Zone | Google Sheets (HeaderFactura, DetalleFactura) |
 | Data Catalog | LakeCatalog sheet + Catalog Explorer UI |
-| Query Engine | Danfo.js DataFrames running in the browser |
+| Query Engine | DuckDB WASM running SQL in the browser |
 | Serving / Analytics Layer | React dashboard + Query Lab |
 | Data Lineage | DriveFileId column linking Drive → Sheets rows |
 
@@ -124,11 +124,11 @@ with the query engine running **inside the browser**.
 │  └────────┬────────┘  └───────┬──────────┘  └──────────┬───────────┘  │
 │           │                   │                         │              │
 │  ╔════════▼═══════════════════▼═════════════════════════▼═══════════╗  │
-│  ║              DANFO.JS CLIENT-SIDE QUERY ENGINE                   ║  │
+│  ║              DUCKDB WASM CLIENT-SIDE QUERY ENGINE                ║  │
 │  ║                                                                  ║  │
-│  ║  useLakeData()  →  headerDf, detalleDf, catalogDf (DataFrames)  ║  │
-│  ║  useQuery()     →  run({ filters, groupBy, metrics }) → rows    ║  │
-│  ║  queryService   →  filter / groupby / join / sort / export      ║  │
+│  ║  useLakeData()  →  db (DuckDB instance with tables registered)  ║  │
+│  ║  useQuery()     →  run(sql) or run({ filters, groupBy... })     ║  │
+│  ║  queryService   →  initDB / registerTable / query / exportCSV   ║  │
 │  ╚══════════════════════════════════════╤══════════════════════════╝  │
 └─────────────────────────────────────────┼────────────────────────────┘
                                           │ Axios HTTP
@@ -199,10 +199,10 @@ with the query engine running **inside the browser**.
 - **LakeCatalog**: one row per Drive file (metadata + lineage + status)
 - Master data sheets: Agricultores, Clientes, Productos, etc.
 
-#### Serving / Query Layer — Danfo.js in Browser
-- Loads all processed zone data into DataFrames on demand
-- Runs filter, groupby, join, sort operations locally
-- No additional backend endpoints needed for queries
+#### Serving / Query Layer — DuckDB WASM in Browser
+- Initializes an in-memory DuckDB instance on demand
+- Registers Sheets data as in-memory tables (`header`, `detail`, `catalog`, `joined`)
+- Runs SQL queries (filter, groupby, join, sort, aggregation) locally — no backend needed
 - Results rendered as charts and tables
 
 ---
@@ -280,7 +280,7 @@ New sheet added to the master spreadsheet. Every Drive upload appends one row au
 After every successful upload, append a row to `LakeCatalog`:
 ```
 sheets.spreadsheets.values.append({
-  spreadsheetId: MASTER_SPREADSHEET_ID,
+  spreadsheetId: LAKE_SPREADSHEET_ID,
   range: 'LakeCatalog',
   values: [[fileId, name, type, sizeMB, partitionPath, folderId,
             uploadedAt, uploadedBy, '', 'raw', '', '']]
@@ -309,6 +309,7 @@ through to the Sheets write so it lands in `HeaderFactura`.
 ```env
 MASTER_SPREADSHEET_ID=17g9aiOf0mK63tWyIfevKaen_8K_vZXzn078zKjzhq9E
 INVOICE_SPREADSHEET_ID=1U3JF2AfkrQ1R9Q7mqy8xEDI0p0ZK4ba4-JoTWcgiyGQ
+LAKE_SPREADSHEET_ID=<dedicated lake spreadsheet — separate from master data>
 MAIN_DRIVE_FOLDER_ID=151IG_Rd4awTrElqgafxjTPXqWr3n-pzX
 INVOICE_UPLOADS_FOLDER_ID=1h88VrnN8p_YTRFwj0bR4jP4gze8UmvVZ
 OPENAI_API_KEY=...
@@ -323,7 +324,7 @@ from Drive file → Sheets invoice row. No more hardcoded IDs in source code.
 
 ## 6. Phase 2 — Client-Side Query Engine
 
-> **Goal:** Load Sheets data into Danfo.js DataFrames and make them queryable.
+> **Goal:** Load Sheets data into DuckDB WASM and make them queryable with SQL.
 > This is the core query layer — everything in Phases 3-5 depends on it.
 > **Blocker:** Phase 1 must be complete (LakeCatalog must exist).
 
@@ -351,37 +352,51 @@ Single call replaces 3 separate `/read-sheet` calls. Reduces latency on dashboar
 **`src/services/queryService.js`**
 
 ```javascript
-// Build DataFrames from raw sheet arrays
-buildDataFrame(rows, columns)           // → danfo.DataFrame
+// Initialize a DuckDB WASM instance (call once, reuse)
+initDB()                                // → Promise<AsyncDuckDB>
 
-// Core query operation
-query(df, {
+// Register a Sheets dataset as an in-memory DuckDB table
+// rows: [[...], [...]]  columns: ['Col1', 'Col2', ...]
+registerTable(db, tableName, rows, columns)   // → Promise<void>
+// Tables registered: 'header', 'detail', 'catalog'
+// 'joined' is created via SQL VIEW:
+//   CREATE VIEW joined AS SELECT * FROM header JOIN detail USING (NoFactura)
+
+// Run arbitrary SQL against the in-memory DB
+query(db, sql)                          // → Promise<Array<Object>>
+
+// Build SQL from a structured query definition (used by Query Lab)
+buildSQL({
+  table:    'header',                   // 'header' | 'detail' | 'catalog' | 'joined'
   filters: [
-    { column: 'Cliente',  op: '==',  value: 'Walmart' },
+    { column: 'Cliente',  op: '=',   value: 'Walmart' },
     { column: 'Fecha',    op: '>=',  value: '2025-01-01' },
     { column: 'Total',    op: '>',   value: 1000 }
   ],
-  groupBy: ['Cliente', 'Semana'],       // optional
+  groupBy:  ['Cliente', 'Semana'],      // optional
   metrics: [
-    { column: 'Total',    agg: 'sum'  },
-    { column: 'NoFactura',agg: 'count'},
-    { column: 'Total',    agg: 'mean' }
+    { column: 'Total',     agg: 'SUM'   },
+    { column: 'NoFactura', agg: 'COUNT' },
+    { column: 'Total',     agg: 'AVG'   }
   ],
-  orderBy: { column: 'Total', direction: 'desc' },
-  limit: 100
+  orderBy:  { column: 'Total', direction: 'DESC' },
+  limit:    100
 })
-// → Array of plain objects (serialized from DataFrame)
+// → SQL string, e.g.:
+//   SELECT Cliente, Semana, SUM(Total), COUNT(NoFactura), AVG(Total)
+//   FROM header
+//   WHERE Cliente = 'Walmart' AND Fecha >= '2025-01-01' AND Total > 1000
+//   GROUP BY Cliente, Semana
+//   ORDER BY Total DESC
+//   LIMIT 100
 
-// Join header + detail on NoFactura
-joinFacturas(headerDf, detalleDf)       // → merged DataFrame
-
-// Export
-exportCSV(results)                      // → triggers browser download
+// Export results to CSV (triggers browser download)
+exportCSV(results, filename)            // → void
 ```
 
-**Supported aggregations:** `sum`, `count`, `mean`, `min`, `max`
+**Supported aggregations:** `SUM`, `COUNT`, `AVG`, `MIN`, `MAX`
 
-**Supported filter operators:** `==`, `!=`, `>`, `>=`, `<`, `<=`, `contains`
+**Supported filter operators:** `=`, `!=`, `>`, `>=`, `<`, `<=`, `LIKE`
 
 ### 6c. Lake Data Hook
 
@@ -389,43 +404,48 @@ exportCSV(results)                      // → triggers browser download
 
 ```javascript
 const {
-  headerDf,    // DataFrame: all HeaderFactura rows
-  detalleDf,   // DataFrame: all DetalleFactura rows
-  catalogDf,   // DataFrame: all LakeCatalog rows
-  joinedDf,    // DataFrame: header + detail joined
+  db,       // AsyncDuckDB instance — tables 'header', 'detail', 'catalog', view 'joined' ready
   loading,
   error,
-  refresh      // re-fetch from Sheets
+  refresh   // re-fetch from Sheets and re-register tables
 } = useLakeData()
 ```
 
 - Calls `GET /lake-snapshot` once on mount
-- Converts raw arrays to Danfo DataFrames via `queryService.buildDataFrame()`
-- Caches DataFrames in module-level variable (survives re-renders, cleared on refresh)
-- Exposes `refresh()` so users can pull fresh data manually
+- Calls `queryService.initDB()` to boot DuckDB WASM
+- Registers all three datasets as tables via `queryService.registerTable()`
+- Creates a `joined` VIEW via `CREATE VIEW joined AS SELECT * FROM header JOIN detail USING (NoFactura)`
+- Caches the `db` instance in a module-level ref (survives re-renders, replaced on refresh)
+- Exposes `refresh()` so users can pull fresh Sheets data and reload all tables
 
 ### 6d. Query Hook
 
 **`src/hooks/useQuery.js`**
 
 ```javascript
-const { run, results, columns, loading, error, exportCSV } = useQuery(df)
+const { run, results, columns, loading, error, exportCSV } = useQuery(db)
 
-// Usage:
-run({
-  filters:  [{ column: 'Cliente', op: '==', value: 'Walmart' }],
-  groupBy:  ['Semana'],
-  metrics:  [{ column: 'Total', agg: 'sum' }],
-  orderBy:  { column: 'Total', direction: 'desc' },
-  limit:    50
-})
-// results → [{ Semana: 1, Total: 45200 }, ...]
-// columns → ['Semana', 'Total']
+// Run raw SQL directly:
+run(`SELECT Cliente, SUM(Total) as Revenue
+     FROM header
+     GROUP BY Cliente
+     ORDER BY Revenue DESC`)
+// results → [{ Cliente: 'Walmart', Revenue: 45200 }, ...]
+// columns → ['Cliente', 'Revenue']
+
+// Or run a structured query definition (Query Lab uses this):
+run(queryService.buildSQL({
+  table:   'header',
+  groupBy: ['Semana'],
+  metrics: [{ column: 'Total', agg: 'SUM' }],
+  orderBy: { column: 'Total', direction: 'DESC' },
+  limit:   50
+}))
 ```
 
 **Phase 2 Deliverable:**
-Any component can call `useLakeData()` to get DataFrames, then `useQuery()` to filter and
-aggregate. All computation happens in the browser. No new backend endpoints are needed
+Any component can call `useLakeData()` to get a ready DuckDB instance, then `useQuery(db)`
+to run SQL. All computation happens in the browser. No new backend endpoints are needed
 for queries — just the one `/lake-snapshot` call.
 
 ---
@@ -497,8 +517,8 @@ const [filters, setFilters] = useState({
 })
 ```
 
-All four chart components subscribe to `filters`. When filter changes, `useQuery()` reruns
-with the new params — no extra network calls, just Danfo recomputing locally.
+All four chart components subscribe to `filters`. When filter changes, `useQuery(db).run(sql)`
+reruns with new SQL — no extra network calls, DuckDB re-queries the in-memory tables locally.
 
 **Phase 3 Deliverable:**
 A live dashboard reading from the lake, with 4 KPI cards, 3 charts, and a working date/client
@@ -561,8 +581,8 @@ const [queryDef, setQueryDef] = useState({
 })
 ```
 
-The `Run Query` button passes `queryDef` to `useQuery(df).run(queryDef)`.
-Results render in the table. CSV export calls `queryService.exportCSV(results)`.
+The `Run Query` button passes `queryDef` to `queryService.buildSQL(queryDef)`, then
+`useQuery(db).run(sql)`. Results render in the table. CSV export calls `queryService.exportCSV(results)`.
 
 #### Available Dimensions (Group By options)
 
@@ -667,11 +687,11 @@ Auto-computed from the DataFrames. No backend calls needed.
 
 "Analyze Now" deep-links back to `FacturaInicialPage` with the file pre-selected.
 
-**Quality checks implemented via Danfo joins and filters — all client-side:**
-- Left join catalogDf with headerDf on FileId/LinkedInvoice → unprocessed = no match
-- Anti-join headerDf with detalleDf on NoFactura → invoices with no detail rows
-- Filter headerDf where `Cliente == ''` or null
-- Join headerDf Total with detalleDf grouped sum per NoFactura → compare totals
+**Quality checks implemented via DuckDB SQL — all client-side:**
+- `SELECT * FROM catalog LEFT JOIN header ON catalog.LinkedInvoice = header.NoFactura WHERE header.NoFactura IS NULL` → unprocessed files
+- `SELECT * FROM header LEFT JOIN detail USING (NoFactura) WHERE detail.NoFactura IS NULL` → invoices with no detail rows
+- `SELECT * FROM header WHERE Cliente IS NULL OR Cliente = ''` → missing client
+- `SELECT h.NoFactura, h.Total, SUM(d.Total) as DetailSum FROM header h JOIN detail d USING (NoFactura) GROUP BY h.NoFactura, h.Total HAVING ABS(h.Total - DetailSum) > 0.01` → mismatched totals
 
 **Phase 5 Deliverable:**
 The lake is observable. Any stakeholder can see what's stored, where it came from, and whether
@@ -769,25 +789,35 @@ api/
 
 ## 12. Dependencies
 
-### New npm package (frontend only)
+### New npm packages (frontend only)
 
 ```bash
-npm install recharts
+npm install recharts @duckdb/duckdb-wasm
 ```
 
 | Package | Purpose | Size | Cost |
 |---------|---------|------|------|
 | recharts | Charts (LineChart, BarChart, PieChart) | ~300kb | Free |
+| @duckdb/duckdb-wasm | In-browser SQL query engine | ~5MB (WASM) | Free |
+
+`@duckdb/duckdb-wasm` ships its own WASM bundles. It requires the worker files to be
+accessible at runtime. With CRA, copy the WASM files to `public/` or use the
+`selectBundle` helper to load from the jsDelivr CDN:
+
+```javascript
+import { selectBundle, ConsoleLogger, AsyncDuckDB } from '@duckdb/duckdb-wasm'
+import duckdb_wasm from '@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm'
+import duckdb_wasm_eh from '@duckdb/duckdb-wasm/dist/duckdb-eh.wasm'
+```
 
 Everything else is already installed:
-- `danfojs-node` — DataFrame operations (already in both `package.json` files)
 - `googleapis` — Sheets + Drive API (already in `api/package.json`)
 - `axios` — HTTP client (already in frontend)
 - `react-router-dom` — Routing (already in frontend)
 
-> **Note:** `danfojs-node` is the Node.js variant. For browser use, the import should be
-> `danfojs` (browser build). Verify the correct package is being bundled for the React app.
-> If needed: `npm install danfojs` in the root package.json.
+> **Note:** `danfojs-node` was previously listed here. It has been removed. DuckDB WASM
+> replaces it entirely for the query layer. Remove `danfojs-node` from both `package.json`
+> files to reduce bundle size.
 
 ---
 

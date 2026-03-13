@@ -223,5 +223,6 @@ new hooks/services follow the same naming pattern as existing ones.
 - Google Sheets is not a production database — 10M cell limit, no transactions
 - No real-time sync — data is fetched on demand, not pushed
 - `FacturaFinalPage` and `InventarioPage` are placeholders
-- `danfojs-node` is the server-side Danfo variant; the browser-compatible package is
-  `danfojs` — verify the correct build is being used when implementing lake phases
+- The query engine for lake phases is `@duckdb/duckdb-wasm` (browser SQL). Do not use
+  `danfojs` or `danfojs-node` — they have been replaced. Remove both from `package.json`
+  if present.

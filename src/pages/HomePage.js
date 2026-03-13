@@ -25,6 +25,9 @@ export default function HomePage() {
         <Link to="/analisis-venta-final" style={{ textDecoration: 'none' }}>
           <button style={{ padding: '1rem 2rem', fontSize: '1.1rem' }}>4. Análisis y Venta Final</button>
         </Link>
+        <Link to="/lake" style={{ textDecoration: 'none' }}>
+          <button style={{ padding: '1rem 2rem', fontSize: '1.1rem' }}>5. Data Lake</button>
+        </Link>
       </div>
     </div>
   );

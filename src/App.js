@@ -11,6 +11,10 @@ import IngresoDataPage from './pages/IngresoDataPage';
 import InventarioPage from './pages/ingresodata/InventarioPage';
 import FacturaInicialPage from './pages/ingresodata/FacturaInicialPage';
 import FacturaFinalPage from './pages/ingresodata/FacturaFinalPage';
+import LakePage from './pages/LakePage';
+import AnalyticsDashboard from './pages/analytics/AnalyticsDashboard';
+import QueryLab from './pages/analytics/QueryLab';
+import CatalogExplorer from './pages/analytics/CatalogExplorer';
 
 function App() {
   return (
@@ -27,6 +31,10 @@ function App() {
         <Route path="/ingreso-data/inventario" element={<InventarioPage />} />
         <Route path="/ingreso-data/factura-inicial" element={<FacturaInicialPage />} />
         <Route path="/ingreso-data/factura-final" element={<FacturaFinalPage />} />
+        <Route path="/lake" element={<LakePage />} />
+        <Route path="/lake/analytics" element={<AnalyticsDashboard />} />
+        <Route path="/lake/query" element={<QueryLab />} />
+        <Route path="/lake/catalog" element={<CatalogExplorer />} />
       </Routes>
     </Router>
   );
